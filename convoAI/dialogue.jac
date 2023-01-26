@@ -1,6 +1,10 @@
 node dialogue_root;
 
-//Node State
+node dialogue_state {
+    has name;
+    has response;
+}
+
 node dialogue_state {
     can bi_enc.infer;
     can tfm_ner.extract_entity;
@@ -16,7 +20,15 @@ node dialogue_state {
     }
 
     can extract_entities {
-        // Entity extraction logic will be added a bit later on.
+        res = tfm_ner.extract_entity(visitor.question);
+        for ent in res {
+            ent_type = ent["entity_value"];
+            ent_text = ent["entity_text"];
+            if (!(ent_type in visitor.wlk_ctx["entities"])){
+                visitor.wlk_ctx["entities"][ent_type] = [];
+            }
+            visitor.wlk_ctx["entities"][ent_type].l::append(ent_text);
+        }
     }
 
     can init_wlk_ctx {
@@ -56,33 +68,6 @@ node dialogue_root:dialogue_state {
         visitor.response = "Sorry I can't handle that just yet. Anything else I can help you with?";
     }
 }
-
-
-node vehicle {
-    has plate_number;
-    can get_plate_number {
-        report here.plate_number;
-    }
-}
-
-node car:vehicle {
-    has plate_number = "RAC001";
-}
-
-node bus:vehicle {
-    has plate_number = "SUB002";
-}
-
-
-//Custom Edges
-edge intent_transition {
-    has intent;
-}
-
-edge entity_transition {
-    has entities;
-}
-
 
 node how_to_order_state:dialogue_state {
     has name = "how_to_order";
@@ -158,6 +143,16 @@ node td_canceled:dialogue_state {
 }
 
 
+
+edge intent_transition {
+    has intent;
+}
+
+edge entity_transition {
+    has entities;
+}
+
+
 graph dialogue_system {
     has anchor dialogue_root;
     spawn {
@@ -192,23 +187,26 @@ walker init {
 
 walker talk {
     has question;
-    can bi_enc.infer;
+    has wlk_ctx = {};
+    has response;
     root {
-        question = std.input("> ");
         take --> node::dialogue_root;
     }
-    dialogue_root {
-        intent_labels = -[intent_transition]->.edge.intent;
-        predicted_intent = bi_enc.infer(
-            contexts = [question],
-            candidates = intent_labels,
-            context_type = "text",
-            candidate_type = "text"
-        )[0]["predicted"]["label"];
-        take -[intent_transition(intent==predicted_intent)]-> node::dialogue_state;
-    }
     dialogue_state {
-        std.out(here.response);
+        if (!question) {
+            question = std.input("Question (Ctrl-C to exit)> ");
+            here::init_wlk_ctx;
+        }
+        here::nlu;
+        here::process;
+        if (visitor.wlk_ctx["respond"]) {
+            here::nlg;
+            std.out(response);
+            question = null;
+            take here;
+        } else {
+            take visitor.wlk_ctx["next_state"] else: take here;
+        }
     }
 }
 
