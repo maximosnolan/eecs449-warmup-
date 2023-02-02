@@ -1,5 +1,5 @@
 import {*} with "./faq.jac";
-//import {*} with "./bi_enc.jac";
+import {*} with "./ai_model.jac";
 
 node dialogue_root;
 
@@ -22,7 +22,7 @@ node cai_state {
             // Carry over extracted entities from previous interaction
             new_wlk_ctx["entities"] = visitor.wlk_ctx["entities"];
         }
-        visitor.wlk_ctx = new_wlk_ctx;
+        visitor.wlk_ctx = new_wlk_ctx;  
     }
     can nlu {}
     can process {
